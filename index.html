@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f2937">
+<link rel="manifest" href="manifest.webmanifest">
+<title>安全衛生教育記録</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f4f6;color:#111827;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans JP",sans-serif}
+header{background:#1f2937;color:#fff;padding:16px;text-align:center;font-weight:700;font-size:20px}
+main{max-width:720px;margin:auto;padding:14px 12px 40px}
+.card{background:#fff;border-radius:14px;padding:16px;margin:12px 0;box-shadow:0 1px 5px #0001}
+h2{font-size:17px;margin:0 0 12px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 6px}
+input,select,textarea{width:100%;font-size:16px;padding:12px;border:1px solid #d1d5db;border-radius:9px;background:#fff}
+textarea{min-height:90px;resize:vertical}
+.item{display:flex;gap:10px;align-items:flex-start;padding:12px 0;border-bottom:1px solid #e5e7eb}
+.item:last-child{border-bottom:0}.item input{width:24px;height:24px;margin:0;flex:none}
+.item span{font-size:15px;line-height:1.45}
+.notice{background:#fff7ed;border:1px solid #fed7aa;padding:11px;border-radius:9px;font-size:13px}
+.confirm{display:flex;gap:10px;align-items:center;background:#f0fdf4;padding:12px;border-radius:9px;margin-top:12px}
+.confirm input{width:24px;height:24px}
+.sigbox{border:1px solid #9ca3af;border-radius:9px;background:#fff;touch-action:none;width:100%;height:170px}
+.sigbuttons{display:flex;justify-content:space-between;margin-top:7px}
+button{border:0;border-radius:10px;padding:13px 16px;font-size:16px;font-weight:700;cursor:pointer}
+.primary{background:#1f2937;color:white;width:100%;margin-top:14px}
+.secondary{background:#e5e7eb;color:#111827}
+.small{font-size:12px;color:#6b7280}
+.status{display:none;margin-top:12px;padding:12px;border-radius:9px;background:#ecfdf5;color:#166534;font-weight:700}
+footer{text-align:center;color:#6b7280;font-size:12px;padding:10px}
+</style>
+</head>
+<body>
+<header>安全衛生教育記録</header>
+<main>
+<div class="card">
+<h2>① 対象者情報</h2>
+<label>氏名 *</label><input id="name" placeholder="例：山田 太郎">
+<label>所属 *</label><input id="dept" placeholder="例：製造部">
+<label>職種・担当業務</label><input id="job" placeholder="例：板金加工">
+<label>雇入年月日</label><input id="hire" type="date">
+<label>教育実施日 *</label><input id="date" type="date">
+<label>教育実施者 *</label><input id="trainer" placeholder="例：中谷 龍司">
+</div>
+
+<div class="card">
+<h2>② 安全衛生教育項目</h2>
+<div class="notice">教育担当者が説明した項目にチェックを入れてください。</div>
+<div id="items"></div>
+<label>教育内容・個別注意事項</label>
+<textarea id="notes" placeholder="本人に特に説明した内容、注意事項など"></textarea>
+</div>
+
+<div class="card">
+<h2>③ 本人確認</h2>
+<label>本人氏名（確認） *</label><input id="confirmName" placeholder="氏名を入力">
+<div class="confirm"><input id="understood" type="checkbox"><span>教育内容を理解し、安全ルールを守って作業することを確認しました。</span></div>
+</div>
+
+<div class="card">
+<h2>④ 本人署名</h2>
+<p class="small">画面に指で署名してください。</p>
+<canvas id="sig1" class="sigbox"></canvas>
+<div class="sigbuttons"><button class="secondary" onclick="clearSig('sig1')">署名を消す</button></div>
+</div>
+
+<div class="card">
+<h2>⑤ 教育担当者署名</h2>
+<p class="small">教育担当者が画面に指で署名してください。</p>
+<canvas id="sig2" class="sigbox"></canvas>
+<div class="sigbuttons"><button class="secondary" onclick="clearSig('sig2')">署名を消す</button></div>
+</div>
+
+<button class="primary" onclick="saveRecord()">記録を確定する</button>
+<div id="status" class="status">記録を確定しました。この端末では保存方法を別途設定するまで、入力内容は保持しません。</div>
+<button class="secondary" style="width:100%;margin-top:10px" onclick="newRecord()">新しい記録</button>
+<footer>安全衛生教育記録アプリ　スマートフォン対応版</footer>
+</main>
+
+<script>
+const educationItems=[
+"工場内の危険箇所・立入禁止区域",
+"機械・原材料等の危険性、有害性と取扱方法",
+"安全装置・保護具の性能と使用方法",
+"作業手順・作業開始前の点検",
+"整理・整頓・清潔の保持",
+"フォークリフト等の走行区域・接触防止",
+"事故・災害発生時の応急措置・退避方法",
+"緊急時の避難場所・連絡方法",
+"その他、業務上必要な安全衛生事項"
+];
+document.getElementById("items").innerHTML=educationItems.map((x,i)=>
+`<label class="item"><input type="checkbox" class="edu" value="${i+1}"><span>${i+1}. ${x}</span></label>`).join("");
+
+function setupCanvas(id){
+ const c=document.getElementById(id), ctx=c.getContext("2d");
+ function resize(){
+   const dpr=Math.max(1,devicePixelRatio||1), r=c.getBoundingClientRect();
+   c.width=r.width*dpr;c.height=r.height*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);
+   ctx.lineWidth=2;ctx.lineCap="round";ctx.lineJoin="round";
+ }
+ resize(); window.addEventListener("resize",resize);
+ let drawing=false;
+ function pos(e){const r=c.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-r.left,y:t.clientY-r.top}}
+ function start(e){e.preventDefault();drawing=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)}
+ function move(e){if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()}
+ function end(e){drawing=false}
+ c.addEventListener("pointerdown",start);c.addEventListener("pointermove",move);c.addEventListener("pointerup",end);c.addEventListener("pointercancel",end);
+}
+setupCanvas("sig1");setupCanvas("sig2");
+function clearSig(id){const c=document.getElementById(id),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height)}
+function hasInk(id){
+ const c=document.getElementById(id),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;
+ for(let i=3;i<d.length;i+=4)if(d[i]>10)return true;return false;
+}
+function saveRecord(){
+ const req=[["name","氏名"],["dept","所属"],["date","教育実施日"],["trainer","教育実施者"],["confirmName","本人氏名"]];
+ for(const [id,n] of req)if(!document.getElementById(id).value.trim()){alert(n+"を入力してください。");document.getElementById(id).focus();return}
+ if(!document.querySelector(".edu:checked")){alert("教育項目を1つ以上チェックしてください。");return}
+ if(!document.getElementById("understood").checked){alert("本人確認のチェックを入れてください。");return}
+ if(!hasInk("sig1")){alert("本人署名をしてください。");return}
+ if(!hasInk("sig2")){alert("教育担当者署名をしてください。");return}
+ document.getElementById("status").style.display="block";
+ window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+}
+function newRecord(){if(confirm("入力内容を消去して新しい記録を作成しますか？"))location.reload()}
+if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
+</script>
+<div id="adminPanel" style="display:none;position:fixed;inset:0;background:#f3f4f6;z-index:99;overflow:auto;padding:16px;font-family:sans-serif"><div style="max-width:760px;margin:auto;background:white;padding:16px;border-radius:14px"><h2>管理者一覧</h2><input id="apass" type="password" placeholder="管理者パスワード" style="width:100%;padding:12px;font-size:16px"><button onclick="adminLogin()" style="padding:12px;margin:8px 0">一覧を開く</button><div id="alist" style="display:none"><input id="asearch" oninput="renderAdmin()" placeholder="氏名・所属で検索" style="width:100%;padding:12px"><p id="acount"></p><button onclick="window.print()" style="padding:12px">一覧を印刷 / PDF</button><button onclick="exportCSV()" style="padding:12px">CSV出力</button><div id="atable"></div><button onclick="document.getElementById('adminPanel').style.display='none'" style="padding:12px">閉じる</button></div></div></div><button onclick="document.getElementById('adminPanel').style.display='block'" style="display:block;width:100%;margin:10px 0;padding:14px;background:#374151;color:white;border:0;border-radius:10px;font-size:16px">管理者画面</button><style>@media print{#adminPanel{position:static!important;background:white!important}#adminPanel>div>button,#apass,#alist>button,#asearch{display:none!important}}</style><script>function adminLogin(){if(document.getElementById('apass').value!==(localStorage.adminPass||'1234'))return alert('パスワードが違います');document.getElementById('alist').style.display='block';renderAdmin()}function renderAdmin(){let a=JSON.parse(localStorage.safetyRecords||'[]').sort((x,y)=>y.date.localeCompare(x.date)),q=document.getElementById('asearch').value.trim();if(q)a=a.filter(x=>(x.name+x.dept).includes(q));document.getElementById('acount').textContent=a.length+'件';document.getElementById('atable').innerHTML='<table style="width:100%;border-collapse:collapse"><tr><th>教育日</th><th>氏名</th><th>所属</th><th>担当者</th></tr>'+a.map(x=>'<tr><td>'+x.date+'</td><td>'+x.name+'</td><td>'+x.dept+'</td><td>'+x.trainer+'</td></tr>').join('')+'</table>'}function exportCSV(){let a=JSON.parse(localStorage.safetyRecords||'[]'),s='\ufeff教育日,氏名,所属,職種,教育担当者,注意事項\n'+a.map(x=>[x.date,x.name,x.dept,x.job,x.trainer,x.notes].map(v=>'"'+String(v||'').replaceAll('"','""')+'"').join(',')).join('\n'),u=URL.createObjectURL(new Blob([s],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=u;a.download='安全衛生教育記録一覧.csv';a.click()}</script></body>
+</html>
