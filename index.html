@@ -81,6 +81,7 @@ footer{text-align:center;color:#6b7280;font-size:12px;padding:10px}
 
 <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js"></script>　
 <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore-compat.js"></script>
+ <script src="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth-compat.js"></script>
  <script>
  const firebaseConfig = {
     apiKey: "AIzaSyBQZlV3n1du7sGstXzoLqFVnneqeCT_p7I",
@@ -91,6 +92,15 @@ footer{text-align:center;color:#6b7280;font-size:12px;padding:10px}
     appId: "1:194997925314:web:7ad47c3e00eee7fb0a925b"
   };
 firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+
+auth.signInAnonymously()
+  .then(() => {
+    console.log("匿名ログイン成功");
+  })
+  .catch((error) => {
+    console.error("匿名ログイン失敗:", error);
+  });
  </script>
 const educationItems=[
 "工場内の危険箇所・立入禁止区域",
