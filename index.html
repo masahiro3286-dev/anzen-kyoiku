@@ -102,6 +102,7 @@ auth.signInAnonymously()
     console.error("匿名ログイン失敗:", error);
   });
  </script>
+<script> 
 const educationItems=[
 "工場内の危険箇所・立入禁止区域",
 "機械・原材料等の危険性、有害性と取扱方法",
@@ -137,18 +138,266 @@ function hasInk(id){
  const c=document.getElementById(id),d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;
  for(let i=3;i<d.length;i+=4)if(d[i]>10)return true;return false;
 }
-function saveRecord(){
- const req=[["name","氏名"],["dept","所属"],["date","教育実施日"],["trainer","教育実施者"],["confirmName","本人氏名"]];
- for(const [id,n] of req)if(!document.getElementById(id).value.trim()){alert(n+"を入力してください。");document.getElementById(id).focus();return}
- if(!document.querySelector(".edu:checked")){alert("教育項目を1つ以上チェックしてください。");return}
- if(!document.getElementById("understood").checked){alert("本人確認のチェックを入れてください。");return}
- if(!hasInk("sig1")){alert("本人署名をしてください。");return}
- if(!hasInk("sig2")){alert("教育担当者署名をしてください。");return}
- document.getElementById("status").style.display="block";
- window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+
+async function saveRecord(){
+ const req=[
+  ["name","氏名"],
+  ["dept","所属"],
+  ["date","教育実施日"],
+  ["trainer","教育実施者"],
+  ["confirmName","本人氏名"]
+ ];
+
+ for(const [id,n] of req){
+  const el=document.getElementById(id);
+  if(!el.value.trim()){
+   alert(n+"を入力してください。");
+   el.focus();
+   return;
+  }
+ }
+
+ if(!document.querySelector(".edu:checked")){
+  alert("教育項目を1つ以上チェックしてください。");
+  return;
+ }
+ if(!document.getElementById("understood").checked){
+  alert("本人確認のチェックを入れてください。");
+  return;
+ }
+ if(!hasInk("sig1")){
+  alert("本人署名をしてください。");
+  return;
+ }
+ if(!hasInk("sig2")){
+  alert("教育担当者署名をしてください。");
+  return;
+ }
+
+ const sig1=document.getElementById("sig1").toDataURL("image/png");
+ const sig2=document.getElementById("sig2").toDataURL("image/png");
+
+ if(sig1.length>300000 || sig2.length>300000){
+  alert("署名データが大きすぎます。署名を短く書き直してください。");
+  return;
+ }
+
+ const button=document.querySelector(".primary");
+ button.disabled=true;
+ button.textContent="保存中…";
+
+ try{
+  if(!auth.currentUser){
+   await auth.signInAnonymously();
+  }
+
+  const record={
+   name:document.getElementById("name").value.trim(),
+   dept:document.getElementById("dept").value.trim(),
+   job:document.getElementById("job").value.trim(),
+   hire:document.getElementById("hire").value,
+   date:document.getElementById("date").value,
+   trainer:document.getElementById("trainer").value.trim(),
+   confirmName:document.getElementById("confirmName").value.trim(),
+   items:Array.from(document.querySelectorAll(".edu:checked")).map(el=>el.value),
+   notes:document.getElementById("notes").value.trim(),
+   understood:true,
+   sig1:sig1,
+   sig2:sig2,
+   createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  await firebase.firestore().collection("safetyRecords").add(record);
+
+  document.getElementById("status").textContent="記録をFirebaseに保存しました。";
+  document.getElementById("status").style.display="block";
+  window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+  alert("記録を保存しました。");
+
+ }catch(error){
+  console.error("保存エラー:",error);
+  alert("保存できませんでした。入力内容は消さずに、管理者へ連絡してください。");
+ }finally{
+  button.disabled=false;
+  button.textContent="記録を確定する";
+ }
 }
-function newRecord(){if(confirm("入力内容を消去して新しい記録を作成しますか？"))location.reload()}
+
+function newRecord(){
+ if(confirm("入力内容を消去して新しい記録を作成しますか？")){
+  location.reload();
+ }
+}
+
 if("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
 </script>
-<div id="adminPanel" style="display:none;position:fixed;inset:0;background:#f3f4f6;z-index:99;overflow:auto;padding:16px;font-family:sans-serif"><div style="max-width:760px;margin:auto;background:white;padding:16px;border-radius:14px"><h2>管理者一覧</h2><input id="apass" type="password" placeholder="管理者パスワード" style="width:100%;padding:12px;font-size:16px"><button onclick="adminLogin()" style="padding:12px;margin:8px 0">一覧を開く</button><div id="alist" style="display:none"><input id="asearch" oninput="renderAdmin()" placeholder="氏名・所属で検索" style="width:100%;padding:12px"><p id="acount"></p><button onclick="window.print()" style="padding:12px">一覧を印刷 / PDF</button><button onclick="exportCSV()" style="padding:12px">CSV出力</button><div id="atable"></div><button onclick="document.getElementById('adminPanel').style.display='none'" style="padding:12px">閉じる</button></div></div></div><button onclick="document.getElementById('adminPanel').style.display='block'" style="display:block;width:100%;margin:10px 0;padding:14px;background:#374151;color:white;border:0;border-radius:10px;font-size:16px">管理者画面</button><style>@media print{#adminPanel{position:static!important;background:white!important}#adminPanel>div>button,#apass,#alist>button,#asearch{display:none!important}}</style><script>function adminLogin(){if(document.getElementById('apass').value!==(localStorage.adminPass||'1234'))return alert('パスワードが違います');document.getElementById('alist').style.display='block';renderAdmin()}function renderAdmin(){let a=JSON.parse(localStorage.safetyRecords||'[]').sort((x,y)=>y.date.localeCompare(x.date)),q=document.getElementById('asearch').value.trim();if(q)a=a.filter(x=>(x.name+x.dept).includes(q));document.getElementById('acount').textContent=a.length+'件';document.getElementById('atable').innerHTML='<table style="width:100%;border-collapse:collapse"><tr><th>教育日</th><th>氏名</th><th>所属</th><th>担当者</th></tr>'+a.map(x=>'<tr><td>'+x.date+'</td><td>'+x.name+'</td><td>'+x.dept+'</td><td>'+x.trainer+'</td></tr>').join('')+'</table>'}function exportCSV(){let a=JSON.parse(localStorage.safetyRecords||'[]'),s='\ufeff教育日,氏名,所属,職種,教育担当者,注意事項\n'+a.map(x=>[x.date,x.name,x.dept,x.job,x.trainer,x.notes].map(v=>'"'+String(v||'').replaceAll('"','""')+'"').join(',')).join('\n'),u=URL.createObjectURL(new Blob([s],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=u;link.download='安全衛生教育記録一覧.csv';link.click()}</script></body>
+<div id="adminPanel" style="display:none;position:fixed;inset:0;background:#f3f4f6;z-index:99;overflow:auto;padding:16px;font-family:sans-serif">
+  <div style="max-width:1000px;margin:auto;background:white;padding:16px;border-radius:14px">
+    <h2>安全衛生教育記録・管理者一覧</h2>
+
+    <label>管理者メールアドレス</label>
+    <input id="adminEmail" type="email" autocomplete="username"
+      placeholder="管理者メールアドレス"
+      style="width:100%;padding:12px;box-sizing:border-box;font-size:16px">
+
+    <label>管理者パスワード</label>
+    <input id="adminPassword" type="password" autocomplete="current-password"
+      placeholder="Firebaseのパスワード"
+      style="width:100%;padding:12px;box-sizing:border-box;font-size:16px">
+
+    <button onclick="adminLogin()" style="padding:12px;margin:8px 0">ログインして一覧を開く</button>
+    <p id="adminStatus" role="status"></p>
+
+    <div id="alist" style="display:none">
+      <input id="asearch" oninput="renderAdmin()"
+        placeholder="氏名・所属で検索"
+        style="width:100%;padding:12px;box-sizing:border-box">
+
+      <p id="acount"></p>
+      <button onclick="exportCSV()" style="padding:12px">CSV出力</button>
+      <button onclick="window.print()" style="padding:12px">印刷 / PDF</button>
+      <button onclick="adminLogout()" style="padding:12px">ログアウト</button>
+
+      <div id="atable" style="overflow-x:auto"></div>
+    </div>
+
+    <button onclick="document.getElementById('adminPanel').style.display='none'"
+      style="padding:12px;margin-top:12px">閉じる</button>
+  </div>
+</div>
+
+<button onclick="document.getElementById('adminPanel').style.display='block'"
+  style="display:block;width:100%;margin:10px 0;padding:14px;background:#374151;color:white;border:0;border-radius:10px;font-size:16px">
+  管理者画面
+</button>
+
+<style>
+@media print {
+  body > *:not(#adminPanel) { display:none !important; }
+  #adminPanel { display:block !important; position:static !important; background:white !important; overflow:visible !important; }
+  #adminPanel button, #adminEmail, #adminPassword, #asearch, #adminStatus { display:none !important; }
+  #alist { display:block !important; }
+  #atable { overflow:visible !important; }
+  #atable table { width:100%; border-collapse:collapse; font-size:10pt; }
+  #atable th, #atable td { border:1px solid #999; padding:5px; }
+}
+</style>
+
+<script>
+let adminRecords = [];
+
+function adminEscape(value) {
+  return String(value ?? "").replace(/[&<>"']/g, function(c) {
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+async function adminLogin() {
+  const email = document.getElementById("adminEmail").value.trim();
+  const password = document.getElementById("adminPassword").value;
+  const status = document.getElementById("adminStatus");
+
+  if (!email || !password) {
+    status.textContent = "メールアドレスとパスワードを入力してください。";
+    return;
+  }
+
+  status.textContent = "ログイン・記録読み込み中です…";
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    const snapshot = await firebase.firestore()
+      .collection("safetyRecords")
+      .orderBy("date", "desc")
+      .get();
+
+    adminRecords = snapshot.docs.map(doc => {
+      const d = doc.data();
+      return {
+        date: d.date || "",
+        name: d.name || "",
+        dept: d.dept || "",
+        job: d.job || "",
+        hire: d.hire || "",
+        trainer: d.trainer || "",
+        confirmName: d.confirmName || "",
+        items: Array.isArray(d.items) ? d.items.join("、") : "",
+        notes: d.notes || "",
+        understood: d.understood ? "確認済み" : "未確認"
+      };
+    });
+
+    document.getElementById("alist").style.display = "block";
+    status.textContent = "読み込み完了";
+    renderAdmin();
+  } catch (error) {
+    console.error("管理者ログイン・読み込みエラー:", error);
+    status.textContent = "ログインまたは読み込みに失敗しました。メールアドレス、パスワード、Firebaseの公開済みルールを確認してください。";
+  }
+}
+
+function renderAdmin() {
+  const q = document.getElementById("asearch").value.trim().toLowerCase();
+  const rows = adminRecords.filter(x =>
+    (x.name + x.dept).toLowerCase().includes(q)
+  );
+
+  document.getElementById("acount").textContent =
+    rows.length + "件（全" + adminRecords.length + "件）";
+
+  document.getElementById("atable").innerHTML =
+    '<table style="width:100%;border-collapse:collapse">' +
+    '<tr><th>教育日</th><th>氏名</th><th>所属</th><th>職種</th><th>教育担当者</th><th>教育項目</th><th>注意事項</th></tr>' +
+    rows.map(x =>
+      '<tr>' +
+      '<td>' + adminEscape(x.date) + '</td>' +
+      '<td>' + adminEscape(x.name) + '</td>' +
+      '<td>' + adminEscape(x.dept) + '</td>' +
+      '<td>' + adminEscape(x.job) + '</td>' +
+      '<td>' + adminEscape(x.trainer) + '</td>' +
+      '<td>' + adminEscape(x.items) + '</td>' +
+      '<td>' + adminEscape(x.notes) + '</td>' +
+      '</tr>'
+    ).join("") + '</table>';
+
+  document.querySelectorAll("#atable th, #atable td").forEach(el => {
+    el.style.border = "1px solid #ccc";
+    el.style.padding = "6px";
+    el.style.textAlign = "left";
+  });
+}
+
+function exportCSV() {
+  const headers = ["教育日","氏名","所属","職種","入社日","教育担当者","本人氏名","教育項目","注意事項","本人確認"];
+  const keys = ["date","name","dept","job","hire","trainer","confirmName","items","notes","understood"];
+
+  const csv = "\uFEFF" + [
+    headers,
+    ...adminRecords.map(x => keys.map(k => x[k] ?? ""))
+  ].map(row => row.map(v =>
+    '"' + String(v).replace(/"/g, '""') + '"'
+  ).join(",")).join("\r\n");
+
+  const url = URL.createObjectURL(new Blob([csv], {type:"text/csv;charset=utf-8"}));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "安全衛生教育記録一覧.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function adminLogout() {
+  try {
+    await auth.signOut();
+    adminRecords = [];
+    document.getElementById("alist").style.display = "none";
+    document.getElementById("adminPassword").value = "";
+    document.getElementById("adminStatus").textContent = "ログアウトしました。";
+  } catch (error) {
+    console.error("ログアウトエラー:", error);
+    alert("ログアウトできませんでした。");
+  }
+}
+</script>
+</body>
 </html>
